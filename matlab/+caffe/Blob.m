@@ -15,6 +15,18 @@ classdef Blob < handle
     function shape = shape(self)
       shape = caffe_('blob_get_shape', self.hBlob_self);
     end
+    function width = width(self)
+      width = caffe_('blob_width', self.hBlob_self);
+    end
+    function height = height(self)
+      height = caffe_('blob_height', self.hBlob_self);
+    end
+    function channels = channels(self)
+      channels = caffe_('blob_channels', self.hBlob_self);
+    end
+    function num = num(self)
+      num = caffe_('blob_num', self.hBlob_self);
+    end
     function reshape(self, shape)
       shape = self.check_and_preprocess_shape(shape);
       caffe_('blob_reshape', self.hBlob_self, shape);

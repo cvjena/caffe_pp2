@@ -298,18 +298,56 @@ static void net_get_attr(MEX_ARGS) {
 
 // Usage: caffe_('net_forward', hNet)
 static void net_forward(MEX_ARGS) {
-  mxCHECK(nrhs == 1 && mxIsStruct(prhs[0]),
-      "Usage: caffe_('net_forward', hNet)");
+  mxCHECK((nrhs == 1 || nrhs ==3) && mxIsStruct(prhs[0]),
+      "Usage: caffe_('net_forward', hNet) or caffe_('net_forward', hNet, layer_from, layer_to)");
   Net<float>* net = handle_to_ptr<Net<float> >(prhs[0]);
-  net->ForwardPrefilled();
+  if (nrhs == 3) {
+    int layer_start = mxGetScalar(prhs[1])-1;
+    int layer_end = mxGetScalar(prhs[2])-1;
+    net->ForwardFromTo(layer_start, layer_end);
+    if (nlhs>0) {
+      // Find the output blob ids for the layer and return them to the caller as array
+      const vector<vector<Blob<float>*> > top_vecs = net->top_vecs();
+      vector<Blob<float>*> top_blobs = top_vecs[layer_end];
+      const vector<shared_ptr<Blob<float> > >& blobs = net->blobs();
+      plhs[0] = mxCreateNumericMatrix(1, top_blobs.size(), mxINT32_CLASS, mxREAL);
+      int* out_data = (int*) mxGetData(plhs[0]);
+      // for each top blob
+      for (int i = 0; i<top_blobs.size(); i++) {
+	// search for the blob id
+	for (int j = 0; j<blobs.size(); j++) {
+	  Blob<float>* left = top_blobs[i];
+	  Blob<float>* right = blobs[j].get();
+	  if (left == right) {
+	    out_data[i] = j;
+	    break;
+	  }
+	}
+      }
+    }
+  }
+  else {
+    net->ForwardPrefilled();
+  }
 }
 
 // Usage: caffe_('net_backward', hNet)
 static void net_backward(MEX_ARGS) {
-  mxCHECK(nrhs == 1 && mxIsStruct(prhs[0]),
-      "Usage: caffe_('net_backward', hNet)");
+  mxCHECK((nrhs == 1 || nrhs ==3) && mxIsStruct(prhs[0]),
+      "Usage: caffe_('net_backward', hNet) or caffe_('net_backward', hNet, layer_from, layer_to);");
   Net<float>* net = handle_to_ptr<Net<float> >(prhs[0]);
-  net->Backward();
+  if (nrhs == 3) {
+    int layer_start = mxGetScalar(prhs[1]);
+    int layer_end = mxGetScalar(prhs[2]);
+    vector<bool>* need_backward = (vector<bool>*)&net->layer_need_backward();
+    for (int i = layer_start-1; i >= layer_end-1; --i) {
+      (need_backward->at(i)) = true;
+    }
+    net->BackwardFromTo(layer_start-1, layer_end-1);
+  }
+  else {
+    net->Backward();
+  }
 }
 
 // Usage: caffe_('net_copy_from', hNet, weights_file)
@@ -377,6 +415,54 @@ static void blob_get_shape(MEX_ARGS) {
        ++blob_axis, --mat_axis) {
     shape_mem_mtr[mat_axis] = static_cast<double>(blob->shape(blob_axis));
   }
+  plhs[0] = mx_shape;
+}
+
+
+// Usage: caffe_('blob_width', hBlob)
+static void blob_width(MEX_ARGS) {
+  mxCHECK(nrhs == 1 && mxIsStruct(prhs[0]),
+      "Usage: caffe_('blob_width', hBlob)");
+  Blob<float>* blob = handle_to_ptr<Blob<float> >(prhs[0]);
+  mxArray* mx_shape = mxCreateDoubleMatrix(1, 1, mxREAL);
+  double* shape_mem_mtr = mxGetPr(mx_shape);
+  shape_mem_mtr[0] = static_cast<double>(blob->width());
+  plhs[0] = mx_shape;
+}
+
+
+// Usage: caffe_('blob_height', hBlob)
+static void blob_height(MEX_ARGS) {
+  mxCHECK(nrhs == 1 && mxIsStruct(prhs[0]),
+      "Usage: caffe_('blob_height', hBlob)");
+  Blob<float>* blob = handle_to_ptr<Blob<float> >(prhs[0]);
+  mxArray* mx_shape = mxCreateDoubleMatrix(1, 1, mxREAL);
+  double* shape_mem_mtr = mxGetPr(mx_shape);
+  shape_mem_mtr[0] = static_cast<double>(blob->height());
+  plhs[0] = mx_shape;
+}
+
+
+// Usage: caffe_('blob_channels', hBlob)
+static void blob_channels(MEX_ARGS) {
+  mxCHECK(nrhs == 1 && mxIsStruct(prhs[0]),
+      "Usage: caffe_('blob_channels', hBlob)");
+  Blob<float>* blob = handle_to_ptr<Blob<float> >(prhs[0]);
+  mxArray* mx_shape = mxCreateDoubleMatrix(1, 1, mxREAL);
+  double* shape_mem_mtr = mxGetPr(mx_shape);
+  shape_mem_mtr[0] = static_cast<double>(blob->channels());
+  plhs[0] = mx_shape;
+}
+
+
+// Usage: caffe_('blob_num', hBlob)
+static void blob_num(MEX_ARGS) {
+  mxCHECK(nrhs == 1 && mxIsStruct(prhs[0]),
+      "Usage: caffe_('blob_num', hBlob)");
+  Blob<float>* blob = handle_to_ptr<Blob<float> >(prhs[0]);
+  mxArray* mx_shape = mxCreateDoubleMatrix(1, 1, mxREAL);
+  double* shape_mem_mtr = mxGetPr(mx_shape);
+  shape_mem_mtr[0] = static_cast<double>(blob->num());
   plhs[0] = mx_shape;
 }
 
@@ -458,8 +544,8 @@ static void get_init_key(MEX_ARGS) {
 static void reset(MEX_ARGS) {
   mxCHECK(nrhs == 0, "Usage: caffe_('reset')");
   // Clear solvers and stand-alone nets
-  mexPrintf("Cleared %d solvers and %d stand-alone nets\n",
-      solvers_.size(), nets_.size());
+  //mexPrintf("Cleared %d solvers and %d stand-alone nets\n",
+  //    solvers_.size(), nets_.size());
   solvers_.clear();
   nets_.clear();
   // Generate new init_key, so that handles created before becomes invalid
@@ -530,6 +616,10 @@ static handler_registry handlers[] = {
   { "layer_get_attr",     layer_get_attr  },
   { "layer_get_type",     layer_get_type  },
   { "blob_get_shape",     blob_get_shape  },
+  { "blob_width",         blob_width      },
+  { "blob_height",     	  blob_height     },
+  { "blob_channels",      blob_channels   },
+  { "blob_num",           blob_num        },
   { "blob_reshape",       blob_reshape    },
   { "blob_get_data",      blob_get_data   },
   { "blob_set_data",      blob_set_data   },
