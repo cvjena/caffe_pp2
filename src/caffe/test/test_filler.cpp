@@ -35,6 +35,41 @@ TYPED_TEST(ConstantFillerTest, TestFill) {
 
 
 template <typename Dtype>
+class ExpectationFillerTest : public ::testing::Test {
+ protected:
+  ExpectationFillerTest()
+      : blob_(new Blob<Dtype>()),
+        filler_param_() {
+    static const int blob_shape[] = {2, 24};
+    blob_->Reshape(vector<int>(blob_shape, blob_shape+2));
+    filler_param_.set_height(4);
+    filler_param_.set_width(6);
+    filler_param_.set_expectation_option("xy");
+    filler_.reset(new ExpectationFiller<Dtype>(filler_param_));
+    filler_->Fill(blob_);
+  }
+  virtual ~ExpectationFillerTest() { delete blob_; }
+  Blob<Dtype>* const blob_;
+  FillerParameter filler_param_;
+  shared_ptr<ExpectationFiller<Dtype> > filler_;
+};
+
+TYPED_TEST_CASE(ExpectationFillerTest, TestDtypes);
+
+TYPED_TEST(ExpectationFillerTest, TestFill) {
+  EXPECT_TRUE(this->blob_);
+  const int count = this->blob_->count();
+  const TypeParam* data = this->blob_->cpu_data();
+  int num_zero = 0;
+  for (int i = 0; i < count; ++i) {
+    if (data[i] == 0.0) num_zero += 1;
+    EXPECT_GE(data[i], -1.0);
+    EXPECT_LE(data[i], 1.0);
+  }
+  EXPECT_EQ(num_zero, 0);
+}
+
+template <typename Dtype>
 class UniformFillerTest : public ::testing::Test {
  protected:
   UniformFillerTest()

@@ -261,6 +261,118 @@ class BilinearFiller : public Filler<Dtype> {
   }
 };
 
+
+/** @brief Fills a Blob with values @f$ x \in {0,x,y} @f$
+ * such that the dummy data values are equal to the pixel location.
+ */
+template <typename Dtype>
+class ExpectationDataFiller : public Filler<Dtype> {
+ public:
+  explicit ExpectationDataFiller(const FillerParameter& param)
+      : Filler<Dtype>(param) {}
+  virtual void Fill(Blob<Dtype>* blob) {
+    Dtype* data = blob->mutable_cpu_data();
+    DCHECK(blob->count());
+    int width = blob->shape(-1);
+    int height = blob->shape(-2);
+    const string& option = this->filler_param_.expectation_option();
+
+    // x means E[x], y means E[y]
+    if (option != "x" && option != "y") {
+      LOG(FATAL) << "Only x or y allowed as expectation data filler, not " << option;
+    }
+
+    // Iterate over all channels.
+    for (int c = 0; c < blob->count(0,blob->CanonicalAxisIndex(-2)); ++c) {
+      for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+          int offset = c*width*height + y*width + x;
+          Dtype* weight_ptr = data + offset;
+          if (option == "y") {
+            weight_ptr[0] = 2*(Dtype(y) / Dtype(height-1) - Dtype(0.5));
+          } else {
+            weight_ptr[0] = 2*(Dtype(x) / Dtype(width-1) - Dtype(0.5));
+          }
+        }
+      }
+    }
+
+    // We expect the filler to not be called very frequently, so we will
+    // just use a simple implementation
+    CHECK_EQ(this->filler_param_.sparse(), -1)
+         << "Sparsity not supported by this Filler.";
+  }
+};
+
+
+
+/** @brief Fills a Blob with values @f$ x \in {0,x,y} @f$
+ * such that the output of the inner product layer is the weighted average
+ * x and y coordinate for each input channel.
+ */
+template <typename Dtype>
+class ExpectationFiller : public Filler<Dtype> {
+ public:
+  explicit ExpectationFiller(const FillerParameter& param)
+      : Filler<Dtype>(param) {}
+  virtual void Fill(Blob<Dtype>* blob) {
+    Dtype* data = blob->mutable_cpu_data();
+    DCHECK(blob->count());
+    int width = this->filler_param_.width();
+    int height = this->filler_param_.height();
+    const string& option = this->filler_param_.expectation_option();
+
+    // paramater blob should be 1x1xhxw where h is determined by number of
+    // channels of the input and w is the dim of the input.
+    CHECK_EQ(blob->shape(1), width * height) << blob->shape(1) << " != " << width*height;
+    // x means E[x], y means E[y]
+    // xy means E[x] and E[y] both output
+    // -x^2y^2 means -E[x^2] and -E[y^2] both output
+    if (option == "xy" || option == "-x^2y^2") {
+      // Output dimension of inner product layer should be either 2 or 1
+      CHECK_EQ(blob->shape(0), 2) << "Output point dimension: " << blob->shape(0);
+    } else if (option == "x" || option == "y") {
+      CHECK_EQ(blob->shape(0), 1) << "Output point dimension: " << blob->shape(0);
+    } else {
+      LOG(FATAL) << "Unknown expectation filler policy: " << option;
+    }
+
+    for (int x = 0; x < width; ++x) {
+      for (int y = 0; y < height; ++y) {
+        // Iterature over all outputs.
+        for (int k = 0; k < blob->shape(0); ++k) {
+          int offset = y*width + x;
+          Dtype* weight_ptr = data + k*width*height + offset;
+          if (k == 0) {
+            if (option == "y") {
+              weight_ptr[0] = 2*(Dtype(y) / Dtype(height-1) - Dtype(0.5));
+            } else if (option == "-x^2y^2") {
+              weight_ptr[0] = - pow(2*(Dtype(x) / Dtype(width-1) - Dtype(0.5)), 2);
+            } else {  // "x" or "xy"
+              weight_ptr[0] = 2*(Dtype(x) / Dtype(width-1) - Dtype(0.5));
+            }
+          } else if (k==1) {
+            if (option == "xy") {
+              weight_ptr[0] = 2*(Dtype(y) / Dtype(height-1) - Dtype(0.5));
+            } else {
+              weight_ptr[0] = - pow(2*(Dtype(y) / Dtype(height-1) - Dtype(0.5)), 2);
+            }
+          } else {
+            LOG(FATAL) << "More than 2 output???";
+          }
+        }
+      }
+    }
+
+    // We expect the filler to not be called very frequently, so we will
+    // just use a simple implementation
+    CHECK_EQ(this->filler_param_.sparse(), -1)
+         << "Sparsity not supported by this Filler.";
+  }
+};
+
+
+
 /**
  * @brief Get a specific filler from the specification given in FillerParameter.
  *
@@ -284,6 +396,10 @@ Filler<Dtype>* GetFiller(const FillerParameter& param) {
     return new MSRAFiller<Dtype>(param);
   } else if (type == "bilinear") {
     return new BilinearFiller<Dtype>(param);
+  } else if (type == "expectation") {
+    return new ExpectationFiller<Dtype>(param);
+  } else if (type == "expectation_data") {
+    return new ExpectationDataFiller<Dtype>(param);
   } else {
     CHECK(false) << "Unknown filler name: " << param.type();
   }

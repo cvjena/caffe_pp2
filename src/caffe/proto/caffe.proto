@@ -51,6 +51,15 @@ message FillerParameter {
   // The expected number of non-zero output weights for a given input in
   // Gaussian filler -- the default -1 means don't perform sparsification.
   optional int32 sparse = 7 [default = -1];
+  // Parameters needed for the spatial expectation layer
+  // Dimensions of input blob (assuming a 4D blob) - should be able to figure
+  // these out automatically in latest version of caffe (see inner prod layer?)
+  optional int32 width = 9;
+  optional int32 height = 10;
+  // Options for expectation ("x" computes expected x coordinate,s "y" computes
+  // expected y coordinates, "xy" computes expected (x,y) coordinates, "-x^2y^2"
+  // computes the expectation over (-x^2, -y^2), for computing variance)
+  optional string expectation_option = 11 [default = "xy"];
   // Normalize the filler variance by fan_in, fan_out, or their average.
   // Applies to 'xavier' and 'msra' fillers.
   enum VarianceNorm {
@@ -391,6 +400,8 @@ message LayerParameter {
   optional ThresholdParameter threshold_param = 128;
   optional TileParameter tile_param = 138;
   optional WindowDataParameter window_data_param = 129;
+ 
+  optional SpatialSoftmaxParameter spatial_softmax_param = 1000;
 }
 
 // Message that stores parameters used to apply transformation
@@ -984,6 +995,18 @@ message SoftmaxParameter {
   // from the end (e.g., -1 for the last axis).
   // Any other axes will be evaluated as independent softmaxes.
   optional int32 axis = 2 [default = 1];
+}
+
+
+// Message that stores parameters used by SpatialSoftmaxLayer
+message SpatialSoftmaxParameter {
+  enum Engine {
+    DEFAULT = 0;
+    CAFFE = 1;
+    CUDNN = 2;
+  }
+  optional Engine engine = 1 [default = DEFAULT];
+  optional float temperature = 2 [default = 1.0];
 }
 
 message TanHParameter {
