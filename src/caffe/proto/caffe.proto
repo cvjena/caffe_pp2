@@ -315,7 +315,7 @@ message ParamSpec {
 // NOTE
 // Update the next available ID when you add a new LayerParameter field.
 //
-// LayerParameter next available layer-specific ID: 145 (last added: crop_param)
+// LayerParameter next available layer-specific ID: 146 (last added: compact_bilinear_param)
 message LayerParameter {
   optional string name = 1; // the layer name
   optional string type = 2; // the layer type
@@ -366,6 +366,7 @@ message LayerParameter {
   optional ArgMaxParameter argmax_param = 103;
   optional BatchNormParameter batch_norm_param = 139;
   optional BiasParameter bias_param = 141;
+  optional CompactBilinearParameter compact_bilinear_param=145;
   optional ConcatParameter concat_param = 104;
   optional ContrastiveLossParameter contrastive_loss_param = 105;
   optional ConvolutionParameter convolution_param = 106;
@@ -544,6 +545,19 @@ message BiasParameter {
   // initially performing the identity operation.
   optional FillerParameter filler = 3;
 }
+
+message CompactBilinearParameter {
+      // compact bilinear pooling output number of channels
+      // two inputs are of size N*C1*H*W and N*C2*H*W, the output has size
+      // N*num_output*1(H)*(W), depending on whether do sum pooling. 
+      optional uint32 num_output = 1;
+      
+      // by default, do sum pooling over spatial locations.
+      // In the case of caring spatio location, such as semantic segmentation,
+      // one might don't want to be pooled spatially. 
+      optional bool sum_pool = 2 [default = true]; 
+}
+
 
 message ContrastiveLossParameter {
   // margin for dissimilar pair
