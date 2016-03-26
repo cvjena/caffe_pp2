@@ -408,6 +408,7 @@ message LayerParameter {
   optional WindowDataParameter window_data_param = 129;
  
   optional SpatialSoftmaxParameter spatial_softmax_param = 1000;
+  optional GaussianAttentionParameter gaussian_attention_param = 2000;
 }
 
 // Message that stores parameters used to apply transformation
@@ -755,6 +756,18 @@ message FlattenParameter {
   // May be negative to index from the end (e.g., the default -1 for the last
   // axis).
   optional int32 end_axis = 2 [default = -1];
+}
+
+// Message that stores parameters used by GaussianAttentionLayer
+message GaussianAttentionParameter {
+  enum Engine {
+    DEFAULT = 0;
+    CAFFE = 1;
+    CUDNN = 2;
+  }
+  optional Engine engine = 1 [default = DEFAULT];
+
+  optional float sigma = 2 [default = 0.5];
 }
 
 // Message that stores parameters used by HDF5DataLayer
