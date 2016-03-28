@@ -6,26 +6,25 @@
 
 namespace caffe {
 
+
 template <typename Dtype>
-__global__ void MultiplyMask(const int nthreads,
-    const Dtype* const bottom_data,
-    const Dtype* attention_locs,
-    const int num, const int channels,
+__global__ void CreateMask(const int nthreads,
+    const Dtype* const attention_locs,
+    const int num, const int num_locs,
     const int height, const int width, 
-    const int channel_stride,
     const Dtype sigma, 
-    Dtype* const top_data) {
+    Dtype* const mask) {
+  // For each mask entry
   CUDA_KERNEL_LOOP(index, nthreads) {
     const int w = index % width;
     const int h = (index / width) % height;
-    //const int c = (index / width / height) % channels;
-    //const int n = index / width / height / channels;
-    const int loc_index = index / width / height / channel_stride;
+    const int l = (index / width / height) % num_locs;
+    const int n = index / width / height / num_locs;
     // dim=0 is along width and dim=1 along height, with -inf towards the top left
-    Dtype cur_attention[2] = { attention_locs[2*loc_index], attention_locs[2*loc_index+1]};
-    Dtype cur_loc[2] = { Dtype(w) / Dtype(width), Dtype(h) / Dtype(height)};
+    Dtype cur_attention[2] = { attention_locs[n*(2*num_locs) + 2*l], attention_locs[n*(2*num_locs) +  2*l+1]};
+    Dtype cur_loc[2] = { Dtype(w) / Dtype(width-1), Dtype(h) / Dtype(height-1)};
     
-    top_data[index] = bottom_data[index];
+    mask[index] = Dtype(1.0);
     Dtype y;
     for (int dim = 0; dim < 2; dim++)
     {
@@ -35,8 +34,30 @@ __global__ void MultiplyMask(const int nthreads,
       cur_loc[dim] = cur_loc[dim]*Dtype(2.0)-Dtype(1.0);
       // The input location for scipy.stats.norm.pdf(x,loc=loc,scale=sigma)
       y = (cur_loc[dim] - cur_attention[dim]) / sigma;
-      top_data[index] = top_data[index] * ( exp(-y / Dtype(2.0) * y ) / sigma / sqrt(Dtype(2.0 * 3.141592653589793)) );
+      mask[index] = mask[index] * ( exp(-y * y / Dtype(2.0) ) / sigma / sqrt(Dtype(2.0 * 3.141592653589793)) );
     }
+  }
+}    
+  
+  
+template <typename Dtype>
+__global__ void MultiplyMask(const int nthreads,
+    const Dtype* const bottom_data,
+    const Dtype* const mask,
+    const int channels,
+    const int height, const int width, 
+    const int num_locs, const int channel_stride,
+    Dtype* const top_data) {
+  CUDA_KERNEL_LOOP(index, nthreads) {
+    const int w = index % width;
+    const int h = (index / width) % height;
+    const int c = (index / width / height) % channels;
+    const int n = index / width / height / channels;
+    
+    const int mask_id = c / channel_stride;
+    const int mask_index = n*num_locs*width*height + mask_id*width*height + (index%(width*height));
+    
+    top_data[index] = bottom_data[index] * mask[mask_index];
   }
 }  
   
@@ -49,15 +70,24 @@ void GaussianAttentionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bott
   const Dtype* attention_locs = bottom[1]->gpu_data();
   Dtype* top_data = top[0]->mutable_gpu_data();
   int count = top[0]->count();
+  Dtype* mask_data = this->blobs_[0]->mutable_gpu_data();
   
   // NOLINT_NEXT_LINE(whitespace/operators)
+  CreateMask<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
+      this->blobs_[0]->count(), attention_locs,
+      this->blobs_[0]->num(), num_locs_,
+      height_, width_, 
+      sigma_, mask_data);
+  
+  const Dtype* const_mask_data = this->blobs_[0]->gpu_data();
+  // NOLINT_NEXT_LINE(whitespace/operators)
   MultiplyMask<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
-      count, bottom_data, attention_locs,
-      bottom[0]->num(), channels_,
+      count, bottom_data, mask_data,
+      channels_,
       height_, width_, 
       // the number of locs
-      channel_stride_,
-      sigma_, top_data);
+      num_locs_, channel_stride_,
+      top_data);
   
   CUDA_POST_KERNEL_CHECK;
   // << " count: " << count << " bottom_data: "

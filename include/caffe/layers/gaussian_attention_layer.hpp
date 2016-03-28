@@ -37,8 +37,9 @@ class GaussianAttentionLayer : public Layer<Dtype> {
      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
   // Blob<Dtype> mean_, variance_, temp_, x_norm_;
+  Blob<Dtype> mask_;
   Dtype sigma_;
-  int channels_;
+  int channels_, num_locs_;
   int height_, width_;
   // The number of channels for each attention location
   int channel_stride_;

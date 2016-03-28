@@ -11,6 +11,9 @@ void GaussianAttentionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& botto
       const vector<Blob<Dtype>*>& top) {
   GaussianAttentionParameter param = this->layer_param_.gaussian_attention_param();
   sigma_ = param.sigma();
+  if (sigma_ < 0.1)
+    LOG(FATAL) << "Sigma of Gaussian attention should be larger than 0.1";
+  this->blobs_.resize(1);
 }
 
 template <typename Dtype>
@@ -20,7 +23,12 @@ void GaussianAttentionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   channels_ = bottom[0]->channels();
   height_ = bottom[0]->height();
   width_ = bottom[0]->width();
+  num_locs_ = bottom[1]->height();
   channel_stride_ = channels_ / bottom[1]->height();
+  // the mask has shape num_locs x height x width
+  std::vector<int> mask_size = bottom[0]->shape();
+  mask_size[1] = bottom[1]->height();
+  this->blobs_[0].reset(new Blob<Dtype>(mask_size));
 }
 
 template <typename Dtype>
