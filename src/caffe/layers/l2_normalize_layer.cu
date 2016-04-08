@@ -5,6 +5,17 @@
 
 namespace caffe {
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+  
+  
 template <typename Dtype>
 void L2NormalizeLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
@@ -21,6 +32,9 @@ void L2NormalizeLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     caffe_gpu_scale<Dtype>(d, pow(normsqr + epsilon, -0.5),
             bottom_data+i*d, top_data+i*d);
   }
+  gpuErrchk( cudaPeekAtLastError() );
+  gpuErrchk( cudaDeviceSynchronize() );
+  CUDA_POST_KERNEL_CHECK;
 }
 
 template <typename Dtype>
@@ -42,6 +56,9 @@ void L2NormalizeLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     caffe_gpu_scale(d, Dtype(pow(a + epsilon, -0.5)), bottom_diff+i*d,
             bottom_diff+i*d);
   }
+  gpuErrchk( cudaPeekAtLastError() );
+  gpuErrchk( cudaDeviceSynchronize() );
+  CUDA_POST_KERNEL_CHECK;
 }
 
 INSTANTIATE_LAYER_GPU_FUNCS(L2NormalizeLayer);

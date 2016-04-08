@@ -9,6 +9,16 @@ namespace caffe {
 
 #define CHECK_CUFFT(X) CHECK_EQ((X), CUFFT_SUCCESS)
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}  
+  
 // overloaded functions, to support float and double
 cublasStatus_t cublasgeam(cublasHandle_t handle, cublasOperation_t transa,
         cublasOperation_t transb, int m, int n, const float *alpha,
@@ -314,6 +324,8 @@ void CompactBilinearLayer<Dtype>::Forward_gpu(
         CUDA_CHECK(cudaFree(batchSpace[ipoly]));
         CUDA_CHECK(cudaFree(fftSpace[ipoly]));
     }
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
 }
 
 template<typename Dtype>
@@ -371,6 +383,7 @@ __global__ void fliplr(const int nthreads, Dtype* src, const int M,
             caffe_gpu_swap(src + index, src + index - n + N - n);
     }
 }
+
 
 template<typename Dtype>
 void CompactBilinearLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
@@ -474,13 +487,15 @@ void CompactBilinearLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
                 bottom_diff[1-ipoly] + batchStart * step_bottom[1-ipoly],
                 randh_[1-ipoly].gpu_data(), rands_[1-ipoly].gpu_data(),
                 batchlen, C[1-ipoly], hw, num_output_);
+	}
     }
-}
 
-// temporary space destroy
-CUDA_CHECK(cudaFree(dzdy));
-CUDA_CHECK(cudaFree(fftSpace[0]));
-CUDA_CHECK(cudaFree(fftSpace[1]));
+    // temporary space destroy
+    CUDA_CHECK(cudaFree(dzdy));
+    CUDA_CHECK(cudaFree(fftSpace[0]));
+    CUDA_CHECK(cudaFree(fftSpace[1]));
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
 }
 
 INSTANTIATE_LAYER_GPU_FUNCS(CompactBilinearLayer);

@@ -90,7 +90,15 @@ __global__ void kernel_pixel_dot(const int pre_spatial_dim,
     pixel_dot[index] = dot;
   }
 }
-
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
 template <typename Dtype>
 void SpatialSoftmaxLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
@@ -140,6 +148,10 @@ void SpatialSoftmaxLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   kernel_pixel_div<Dtype><<<CAFFE_GET_BLOCKS(pre_spatial_dim * spatial_dim),
       CAFFE_CUDA_NUM_THREADS>>>(pre_spatial_dim, spatial_dim, top_data,
       scale_data);
+  
+  gpuErrchk( cudaPeekAtLastError() );
+  gpuErrchk( cudaDeviceSynchronize() );
+  CUDA_POST_KERNEL_CHECK;
 }
 
 template <typename Dtype>
@@ -165,6 +177,10 @@ void SpatialSoftmaxLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
   // scale by temperature and elementwise multiplication
   caffe_gpu_scal<Dtype>(top[0]->count(), temp_, bottom_diff);
   caffe_gpu_mul<Dtype>(top[0]->count(), bottom_diff, top_data, bottom_diff);
+  
+  gpuErrchk( cudaPeekAtLastError() );
+  gpuErrchk( cudaDeviceSynchronize() );
+  CUDA_POST_KERNEL_CHECK;
 }
 
 INSTANTIATE_LAYER_GPU_FUNCS(SpatialSoftmaxLayer);

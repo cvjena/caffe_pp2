@@ -20,6 +20,7 @@ template <typename Dtype>
 void GaussianAttentionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   top[0]->ReshapeLike(*bottom[0]);
+  num_ = bottom[0]->num();
   channels_ = bottom[0]->channels();
   height_ = bottom[0]->height();
   width_ = bottom[0]->width();
@@ -30,7 +31,9 @@ void GaussianAttentionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   mask_size[1] = bottom[1]->height();
   mask_.Reshape(mask_size);
   tmp_.Reshape(mask_size);
-  //this->blobs_[0].reset(new Blob<Dtype>(1,1,1,1));
+  mask_size[1] = channel_stride_;
+  ones_.Reshape(mask_size);
+  caffe_set(ones_.count(),Dtype(1.0),ones_.mutable_cpu_data());
 }
 
 template <typename Dtype>
