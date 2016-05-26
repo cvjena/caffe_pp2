@@ -262,8 +262,6 @@ class BilinearFiller : public Filler<Dtype> {
   }
 };
 
-<<<<<<< HEAD
-
 /** @brief Fills a Blob with values @f$ x \in {0,x,y} @f$
  * such that the dummy data values are equal to the pixel location.
  */
