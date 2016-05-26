@@ -68,6 +68,8 @@ message FillerParameter {
     AVERAGE = 2;
   }
   optional VarianceNorm variance_norm = 8 [default = FAN_IN];
+  // for spatial transformer
+  optional string file = 100;
 }
 
 message NetParameter {
@@ -217,10 +219,8 @@ message SolverParameter {
   // random number generator -- useful for reproducible results. Otherwise,
   // (and by default) initialize using a seed derived from the system clock.
   optional int64 random_seed = 20 [default = -1];
-
   // type of the solver
   optional string type = 40 [default = "SGD"];
-
   // numerical stability for RMSProp, AdaGrad and AdaDelta and Adam
   optional float delta = 31 [default = 1e-8];
   // parameters for the Adam solver
@@ -236,7 +236,6 @@ message SolverParameter {
 
   // If false, don't save a snapshot after training finishes.
   optional bool snapshot_after_train = 28 [default = true];
-
   // DEPRECATED: old solver enum types, use string instead
   enum SolverType {
     SGD = 0;
@@ -285,6 +284,46 @@ message NetStateRule {
   // (Use multiple NetStateRules to specify conjunctions of stages.)
   repeated string stage = 4;
   repeated string not_stage = 5;
+}
+
+message SpatialTransformerParameter {
+
+	// How to use the parameter passed by localisation network
+	optional string transform_type = 1 [default = "affine"];
+	// What is the sampling technique
+	optional string sampler_type = 2 [default = "bilinear"];
+	
+	// If not set,stay same with the input dimension H and W
+	optional int32 output_H = 3;
+	optional int32 output_W = 4;
+	
+	// If false, only compute dTheta, DO NOT compute dU
+	optional bool to_compute_dU = 5 [default = true];
+	
+	// The default value for some parameters
+	optional double theta_1_1 = 6; 
+	optional double theta_1_2 = 7;
+	optional double theta_1_3 = 8;
+	optional double theta_2_1 = 9;
+	optional double theta_2_2 = 10;
+	optional double theta_2_3 = 11;
+}
+
+message PowerFileParameter {
+
+	optional string shift_file = 1;
+}
+
+message STLossParameter {
+	
+	// Indicate the resolution of the output images after ST transformation
+	required int32 output_H = 1;
+	required int32 output_W = 2;
+}
+
+message LocLossParameter {
+	
+	required double threshold = 1;
 }
 
 // Specifies training parameters (multipliers on global learning constants,
@@ -411,10 +450,14 @@ message LayerParameter {
   optional ThresholdParameter threshold_param = 128;
   optional TileParameter tile_param = 138;
   optional WindowDataParameter window_data_param = 129;
- 
+
   optional SpatialSoftmaxParameter spatial_softmax_param = 1000;
   optional GaussianAttentionParameter gaussian_attention_param = 1001;
   optional CompactBilinearParameter compact_bilinear_param = 1002;
+  optional SpatialTransformerParameter st_param = 1003;
+  optional STLossParameter st_loss_param = 1004;
+  optional PowerFileParameter power_file_param = 1005;
+  optional LocLossParameter loc_loss_param = 1006;
 }
 
 // Message that stores parameters used to apply transformation
@@ -602,7 +645,6 @@ message ConvolutionParameter {
   optional uint32 stride_w = 14; // The stride width (2D only)
 
   optional uint32 group = 5 [default = 1]; // The group size for group conv
-
   optional FillerParameter weight_filler = 7; // The filler for the weight
   optional FillerParameter bias_filler = 8; // The filler for the bias
   enum Engine {
@@ -1146,7 +1188,6 @@ message SoftmaxParameter {
   // Any other axes will be evaluated as independent softmaxes.
   optional int32 axis = 2 [default = 1];
 }
-
 
 // Message that stores parameters used by SpatialSoftmaxLayer
 message SpatialSoftmaxParameter {
