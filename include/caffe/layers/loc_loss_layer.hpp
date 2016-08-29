@@ -1,5 +1,5 @@
-#ifndef ST_LOSS_LAYERS_HPP_
-#define ST_LOSS_LAYERS_HPP_
+#ifndef LOC_LOSS_LAYERS_HPP_
+#define LOC_LOSS_LAYERS_HPP_
 
 #include <string>
 #include <utility>
@@ -8,7 +8,7 @@
 #include "caffe/blob.hpp"
 #include "caffe/common.hpp"
 #include "caffe/layer.hpp"
-#include "caffe/neuron_layers.hpp"
+#include "caffe/layers/loss_layer.hpp"
 #include "caffe/proto/caffe.pb.h"
 
 namespace caffe {
@@ -21,16 +21,16 @@ namespace caffe {
  */
 
 template <typename Dtype>
-class STLossLayer : public LossLayer<Dtype> {
+class LocLossLayer : public LossLayer<Dtype> {
 public:
-  explicit STLossLayer(const LayerParameter& param)
+  explicit LocLossLayer(const LayerParameter& param)
       : LossLayer<Dtype>(param) {}
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
         const vector<Blob<Dtype>*>& top);
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
 
-  virtual inline const char* type() const { return "STLoss"; }
+  virtual inline const char* type() const { return "LocLoss"; }
 
   virtual inline int ExactNumBottomBlobs() const { return 1; }
 
@@ -51,13 +51,12 @@ public:
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
  private:
-  Blob<Dtype> loss_;
-  Blob<Dtype> dtheta_tmp_;
-  Blob<Dtype> all_ones_vec_;
+  int N;
+  Dtype threshold;
 
-  int N, output_H_, output_W_;
+  Blob<Dtype> loss_;
 };
 
 }  // namespace caffe
 
-#endif  // ST_LOSS_LAYERS_HPP_
+#endif  // LOC_LOSS_LAYERS_HPP_
