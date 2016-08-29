@@ -7,6 +7,8 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/highgui/highgui_c.h>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/thread/thread.hpp> 
 #endif  // USE_OPENCV
 #include <stdint.h>
 
@@ -18,6 +20,7 @@
 #include "caffe/common.hpp"
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/io.hpp"
+
 
 const int kProtoReadBytesLimit = INT_MAX;  // Max size of 2 GB minus 1 byte.
 
@@ -72,10 +75,24 @@ void WriteProtoToBinaryFile(const Message& proto, const char* filename) {
 #ifdef USE_OPENCV
 cv::Mat ReadImageToCVMat(const string& filename,
     const int height, const int width, const bool is_color) {
-  cv::Mat cv_img;
+  int max_tries = 10;
+  // No of tries before we start waiting exponentially
+  int wait_threshold = 4;
+  
+  cv::Mat cv_img_origin, cv_img;
   int cv_read_flag = (is_color ? CV_LOAD_IMAGE_COLOR :
     CV_LOAD_IMAGE_GRAYSCALE);
-  cv::Mat cv_img_origin = cv::imread(filename, cv_read_flag);
+  
+  for (int num_tries = 0; num_tries < max_tries && ! cv_img_origin.data; num_tries++)
+  {
+      if (num_tries >= wait_threshold)
+      {
+          LOG(INFO) << "Trouble reading image, waiting a bit (retry #" << (num_tries + 1) << ", file " << filename << ")";
+          // Sleep for 2**(num_tries-wait_threshold)
+          boost::this_thread::sleep(boost::posix_time::seconds(std::pow(2, std::max(0, num_tries-wait_threshold))));
+      }
+      cv_img_origin = cv::imread(filename, cv_read_flag);
+  }
   if (!cv_img_origin.data) {
     LOG(ERROR) << "Could not open or find file " << filename;
     return cv_img_origin;
