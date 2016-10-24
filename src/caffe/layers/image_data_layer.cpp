@@ -1,5 +1,6 @@
 #ifdef USE_OPENCV
 #include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 
 #include <fstream>  // NOLINT(readability/streams)
 #include <iostream>  // NOLINT(readability/streams)
@@ -27,6 +28,7 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   const int new_height = this->layer_param_.image_data_param().new_height();
   const int new_width  = this->layer_param_.image_data_param().new_width();
+  const int smaller_side_size  = this->layer_param_.image_data_param().smaller_side_size();
   const bool is_color  = this->layer_param_.image_data_param().is_color();
   string root_folder = this->layer_param_.image_data_param().root_folder();
 
@@ -68,6 +70,10 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
                                     new_height, new_width, is_color);
   CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
+  if (smaller_side_size > 0) {
+      float ratio = smaller_side_size * 1.0 / std::min(cv_img.size().height, cv_img.size().width);
+      cv::resize(cv_img, cv_img, cv::Size(), ratio, ratio);
+  }
   // Use data_transformer to infer the expected blob shape from a cv_image.
   vector<int> top_shape = this->data_transformer_->InferBlobShape(cv_img);
   this->transformed_data_.Reshape(top_shape);
@@ -112,6 +118,7 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   const int batch_size = image_data_param.batch_size();
   const int new_height = image_data_param.new_height();
   const int new_width = image_data_param.new_width();
+  const int smaller_side_size  = this->layer_param_.image_data_param().smaller_side_size();
   const bool is_color = image_data_param.is_color();
   string root_folder = image_data_param.root_folder();
 
@@ -120,6 +127,10 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
       new_height, new_width, is_color);
   CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
+  if (smaller_side_size > 0) {
+      float ratio = smaller_side_size * 1.0 / std::min(cv_img.size().height, cv_img.size().width);
+      cv::resize(cv_img, cv_img,  cv::Size(), ratio, ratio);
+  }
   // Use data_transformer to infer the expected blob shape from a cv_img.
   vector<int> top_shape = this->data_transformer_->InferBlobShape(cv_img);
   this->transformed_data_.Reshape(top_shape);
@@ -139,6 +150,10 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
     cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
         new_height, new_width, is_color);
     CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
+    if (smaller_side_size > 0) {
+        float ratio = smaller_side_size * 1.0 / std::min(cv_img.size().height, cv_img.size().width);
+        cv::resize(cv_img, cv_img,  cv::Size(), ratio, ratio);
+    }
     read_time += timer.MicroSeconds();
     timer.Start();
     // Apply transformations (mirror, crop...) to the image

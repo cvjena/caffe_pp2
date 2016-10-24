@@ -75,7 +75,7 @@ void WriteProtoToBinaryFile(const Message& proto, const char* filename) {
 #ifdef USE_OPENCV
 cv::Mat ReadImageToCVMat(const string& filename,
     const int height, const int width, const bool is_color) {
-  int max_tries = 10;
+  int max_tries = 16;
   // No of tries before we start waiting exponentially
   int wait_threshold = 4;
   
