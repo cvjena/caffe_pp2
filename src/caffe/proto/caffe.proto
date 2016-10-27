@@ -993,6 +993,7 @@ message PowerParameter {
   optional float power = 1 [default = 1.0];
   optional float scale = 2 [default = 1.0];
   optional float shift = 3 [default = 0.0];
+  optional float eps = 4 [default = 0.001];
 }
 
 message PythonParameter {
