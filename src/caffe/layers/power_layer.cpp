@@ -8,6 +8,7 @@ namespace caffe {
 template <typename Dtype>
 void PowerLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
+  CHECK(top[0] != bottom[0]) << "In-place computation is not supported in PowerLayer!";
   NeuronLayer<Dtype>::LayerSetUp(bottom, top);
   power_ = this->layer_param_.power_param().power();
   scale_ = this->layer_param_.power_param().scale();
