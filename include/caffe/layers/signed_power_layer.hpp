@@ -31,7 +31,7 @@ class SignedPowerLayer : public NeuronLayer<Dtype> {
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
 
-  virtual inline const char* type() const { return "Power"; }
+  virtual inline const char* type() const { return "SignedPower"; }
 
  protected:
   /**
@@ -80,6 +80,8 @@ class SignedPowerLayer : public NeuronLayer<Dtype> {
   Dtype scale_;
   /// @brief @f$ \beta @f$ from layer_param_.power_param()
   Dtype shift_;
+  /// @brief @f$ \beta @f$ from layer_param_.power_param()
+  Dtype eps_;
   /// @brief Result of @f$ \alpha \gamma @f$
   Dtype diff_scale_;
 };

@@ -5,6 +5,15 @@
 
 namespace caffe {
     
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}  
 
 template <typename Dtype>
 void caffe_gpu_signed_powx(const int n, const Dtype* a, const Dtype b, Dtype* y);
@@ -47,9 +56,9 @@ __global__ void calc_top_kernel(const int n, const Dtype* x,
   CUDA_KERNEL_LOOP(index, n) {
       Dtype ax_b = scale * x[index] + shift;
       if (ax_b >= 0) {
-        y[index] = pow(abs(ax_b) + eps, power[0]);
+        y[index] = pow(ax_b + eps, power[0]);
       } else {
-        y[index] = Dtype(-1) * pow(abs(ax_b) + eps, power[0]);
+        y[index] = - pow( - ax_b + eps, power[0]);
       }
   }
 }
@@ -97,6 +106,8 @@ void SignedPowerLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                 power_param,
                                 eps_,
                                 top_data);
+  gpuErrchk( cudaPeekAtLastError() );
+  gpuErrchk( cudaDeviceSynchronize() );
 }
 
 template <typename Dtype>
@@ -139,6 +150,8 @@ void SignedPowerLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     }
     caffe_gpu_mul(count, top_diff, bottom_diff, bottom_diff);
   }
+  gpuErrchk( cudaPeekAtLastError() );
+  gpuErrchk( cudaDeviceSynchronize() );
 }
 
 INSTANTIATE_LAYER_GPU_FUNCS(SignedPowerLayer);
