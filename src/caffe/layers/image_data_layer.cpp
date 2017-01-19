@@ -19,6 +19,30 @@
 namespace caffe {
 
 template <typename Dtype>
+void resize_image(std::vector<long unsigned int> &smaller_side_size, cv::Mat &cv_img) {
+  if (smaller_side_size.size() == 1) {
+      float ratio = smaller_side_size[0] * 1.0 / std::min(cv_img.size().height, cv_img.size().width);
+      cv::resize(cv_img, cv_img,  cv::Size(), ratio, ratio);
+  } else if (smaller_side_size.size() == 2) {
+      Dtype cur_side_size;
+      // randomly select a smaller side size
+      if (smaller_side_size[0] < smaller_side_size[1]) {
+          caffe_rng_uniform<Dtype>(1, Dtype(smaller_side_size[0]),
+            Dtype(smaller_side_size[1]), &cur_side_size);
+      } else {
+          caffe_rng_uniform<Dtype>(1, Dtype(smaller_side_size[1]),
+            Dtype(smaller_side_size[0]), &cur_side_size);
+      }
+      float ratio = cur_side_size * 1.0 / std::min(cv_img.size().height, cv_img.size().width);
+      cv::resize(cv_img, cv_img,  cv::Size(), ratio, ratio);
+      
+      DLOG(INFO) << "Resizing to smaller side " << cur_side_size;
+  } else if (smaller_side_size.size() > 2) {
+      LOG(ERROR) << "Please specify either non, one or two smaller_side_size values. Currently specified " << smaller_side_size.size() << " values.";
+  }
+}
+    
+template <typename Dtype>
 ImageDataLayer<Dtype>::~ImageDataLayer<Dtype>() {
   this->StopInternalThread();
 }
@@ -28,7 +52,10 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   const int new_height = this->layer_param_.image_data_param().new_height();
   const int new_width  = this->layer_param_.image_data_param().new_width();
-  const int smaller_side_size  = this->layer_param_.image_data_param().smaller_side_size();
+  std::vector<long unsigned int> smaller_side_size(0);
+  std::copy(this->layer_param_.image_data_param().smaller_side_size().begin(), 
+            this->layer_param_.image_data_param().smaller_side_size().end(), 
+            std::back_inserter(smaller_side_size));
   const bool is_color  = this->layer_param_.image_data_param().is_color();
   string root_folder = this->layer_param_.image_data_param().root_folder();
 
@@ -72,10 +99,7 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
                                     new_height, new_width, is_color);
   CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
-  if (smaller_side_size > 0) {
-      float ratio = smaller_side_size * 1.0 / std::min(cv_img.size().height, cv_img.size().width);
-      cv::resize(cv_img, cv_img, cv::Size(), ratio, ratio);
-  }
+  resize_image<Dtype>(smaller_side_size, cv_img);
   // Use data_transformer to infer the expected blob shape from a cv_image.
   vector<int> top_shape = this->data_transformer_->InferBlobShape(cv_img);
   this->transformed_data_.Reshape(top_shape);
@@ -106,6 +130,7 @@ void ImageDataLayer<Dtype>::ShuffleImages() {
   shuffle(lines_.begin(), lines_.end(), prefetch_rng);
 }
 
+
 // This function is called on prefetch thread
 template <typename Dtype>
 void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
@@ -120,7 +145,10 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   const int batch_size = image_data_param.batch_size();
   const int new_height = image_data_param.new_height();
   const int new_width = image_data_param.new_width();
-  const int smaller_side_size  = this->layer_param_.image_data_param().smaller_side_size();
+  std::vector<long unsigned int> smaller_side_size(0);
+  std::copy(this->layer_param_.image_data_param().smaller_side_size().begin(), 
+            this->layer_param_.image_data_param().smaller_side_size().end(), 
+            std::back_inserter(smaller_side_size));
   const bool is_color = image_data_param.is_color();
   string root_folder = image_data_param.root_folder();
 
@@ -129,12 +157,10 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
       new_height, new_width, is_color);
   CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
-  if (smaller_side_size > 0) {
-      float ratio = smaller_side_size * 1.0 / std::min(cv_img.size().height, cv_img.size().width);
-      cv::resize(cv_img, cv_img,  cv::Size(), ratio, ratio);
-  }
+  // Resize according to parameters
+  resize_image<Dtype>(smaller_side_size, cv_img);
   // Use data_transformer to infer the expected blob shape from a cv_img.
-  vector<int> top_shape = this->data_transformer_->InferBlobShape(cv_img);
+  std::vector<int> top_shape = this->data_transformer_->InferBlobShape(cv_img);
   this->transformed_data_.Reshape(top_shape);
   // Reshape batch according to the batch_size.
   top_shape[0] = batch_size;
@@ -152,10 +178,8 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
     cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
         new_height, new_width, is_color);
     CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
-    if (smaller_side_size > 0) {
-        float ratio = smaller_side_size * 1.0 / std::min(cv_img.size().height, cv_img.size().width);
-        cv::resize(cv_img, cv_img,  cv::Size(), ratio, ratio);
-    }
+    resize_image<Dtype>(smaller_side_size, cv_img);
+    
     read_time += timer.MicroSeconds();
     timer.Start();
     // Apply transformations (mirror, crop...) to the image
