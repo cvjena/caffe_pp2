@@ -255,8 +255,9 @@ classdef Net < handle
             im = tmp;
         end
     end
-
-
+    function delete (self)
+      caffe_('delete_net', self.hNet_self);
+    end
     function layer = layers(self, layer_name)
       CHECK(ischar(layer_name), 'layer_name must be a string');
       layer = self.layer_vec(self.name2layer_index(layer_name));
