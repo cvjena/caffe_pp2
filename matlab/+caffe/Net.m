@@ -256,7 +256,9 @@ classdef Net < handle
         end
     end
     function delete (self)
-      caffe_('delete_net', self.hNet_self);
+      if ~isempty(self.hNet_self)
+        caffe_('delete_net', self.hNet_self);
+      end
     end
     function layer = layers(self, layer_name)
       CHECK(ischar(layer_name), 'layer_name must be a string');
